@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Power Curve Editor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --border: rgba(0,0,0,0.12);
+    --text: #1a1a18; --muted: rgba(0,0,0,0.4);
+    --master: #C0392B; --handle: #BA7517;
+    --power: #2E6FDB; --torque: #0F6E56;
+    --mono: 'Courier New', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131312; --surface: #1e1e1c; --border: rgba(255,255,255,0.1);
+      --text: #e8e7e2; --muted: rgba(255,255,255,0.38);
+      --master: #FF6B5B; --handle: #FAC775;
+      --power: #6FA8FF; --torque: #5DCAA5;
+    }
+  }
+  html[data-theme="light"] {
+    --bg: #f5f4f0; --surface: #ffffff; --border: rgba(0,0,0,0.12);
+    --text: #1a1a18; --muted: rgba(0,0,0,0.4);
+    --master: #C0392B; --handle: #BA7517;
+    --power: #2E6FDB; --torque: #0F6E56;
+  }
+  html[data-theme="dark"] {
+    --bg: #131312; --surface: #1e1e1c; --border: rgba(255,255,255,0.1);
+    --text: #e8e7e2; --muted: rgba(255,255,255,0.38);
+    --master: #FF6B5B; --handle: #FAC775;
+    --power: #6FA8FF; --torque: #5DCAA5;
+  }
+  .theme-toggle { margin-left: auto; }
+  footer { margin-top: 1.5rem; text-align: center; font-size: 11.5px; color: var(--muted); }
+  footer .links { margin-top: 4px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  footer a { color: var(--muted); text-decoration: none; border-bottom: 0.5px solid var(--border); }
+  footer a:hover { color: var(--text); }
+  .input-row { margin-top: 10px; display: flex; gap: 8px; align-items: stretch; }
+  .input-row input {
+    flex: 1; background: var(--bg); border: 0.5px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; font-family: var(--mono); font-size: 11.5px; color: var(--text);
+  }
+  .units-row { margin-bottom: 1rem; display: flex; gap: 8px; flex-wrap: wrap; }
+  .units-row .field { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 120px; }
+  .units-row label { font-size: 10.5px; color: var(--muted); }
+  .units-row input {
+    background: var(--bg); border: 0.5px solid var(--border); border-radius: 6px;
+    padding: 7px 9px; font-family: var(--mono); font-size: 12px; color: var(--text);
+  }
+  .peak-readout { margin-bottom: 10px; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .peak-readout b { color: var(--text); font-weight: 600; }
+  .instructions {
+    margin-top: 10px; padding: 8px 10px; background: var(--bg); border: 0.5px solid var(--border);
+    border-radius: 6px; font-size: 12px; color: var(--text);
+  }
+  .instructions b { color: var(--master); }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px; min-height: 100vh;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .wrap { width: 100%; max-width: 760px; }
+  header { margin-bottom: 1.5rem; }
+  header h1 { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
+  header p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  button {
+    background: transparent; border: 0.5px solid var(--border); border-radius: 6px;
+    color: var(--text); cursor: pointer; font-size: 12px; padding: 5px 12px; transition: background 0.1s;
+  }
+  button:hover { background: var(--bg); }
+  button:active { transform: scale(0.98); }
+  button.primary { border-color: var(--master); color: var(--master); }
+  canvas { width: 100%; border: 0.5px solid var(--border); border-radius: 8px; display: block; cursor: crosshair; touch-action: none; }
+  .legend { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .output-row { margin-top: 10px; display: flex; gap: 8px; align-items: stretch; }
+  .output-box {
+    flex: 1; background: var(--bg); border: 0.5px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; font-family: var(--mono); font-size: 11.5px; color: var(--text);
+    word-break: break-all; line-height: 1.5;
+  }
+  .output-box span { color: var(--muted); font-family: inherit; font-size: 11px; }
+  .hint { margin-top: 8px; font-size: 11px; color: var(--muted); }
+  .seg-controls { margin-top: 1rem; display: flex; gap: 6px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header style="display:flex; align-items:flex-start; gap:12px;">
+    <div style="flex:1">
+      <h1>SimplePlanes 2 Power Curve Editor</h1>
+      <p>Shape the master multiplier curve (red). The power and torque lines are the game's defaults, scaled by whatever the master curve is doing at that RPM.</p>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">Dark mode</button>
+  </header>
+
+  <div class="card">
+    <div class="presets">
+      <button onclick="loadPreset('default')">Default (no change)</button>
+      <button onclick="loadPreset('lowend')">Low-end boost</button>
+      <button onclick="loadPreset('highend')">High-end boost</button>
+      <button onclick="loadPreset('flattenmid')">Flatten mid</button>
+      <div style="flex:1"></div>
+      <button onclick="addSegment()">+ Segment</button>
+      <button onclick="removeSegment()">− Segment</button>
+    </div>
+
+    <div class="units-row">
+      <div class="field">
+        <label for="craftName">Craft name</label>
+        <input id="craftName" type="text" placeholder="(optional, used in exported image)">
+      </div>
+      <div class="field">
+        <label for="peakPower">Peak power (HP)</label>
+        <input id="peakPower" type="number" min="0" step="1" value="500" oninput="draw()">
+      </div>
+      <div class="field">
+        <label for="peakTorque">Peak torque (ft/lb)</label>
+        <input id="peakTorque" type="number" min="0" step="1" value="350" oninput="draw()">
+      </div>
+      <div class="field">
+        <label for="redlineRPM">Redline (RPM)</label>
+        <input id="redlineRPM" type="number" min="0" step="100" value="11000" oninput="draw()">
+      </div>
+    </div>
+
+    <div class="peak-readout" id="peakReadout"></div>
+
+    <canvas id="cv" width="712" height="360"></canvas>
+
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--master)"></i>Master curve (drag this)</span>
+      <span><i class="swatch" style="background:var(--power)"></i>Power (resulting)</span>
+      <span><i class="swatch" style="background:var(--torque)"></i>Torque (resulting)</span>
+    </div>
+
+    <div class="instructions">
+      Paste this into the <b>'Power Curve'</b> field in engine overload menu
+    </div>
+
+    <div class="output-row">
+      <div class="output-box"><span>Master curve: </span><span id="out"></span></div>
+      <button class="primary" onclick="copyOut()" style="white-space:nowrap;padding:0 14px;">Copy</button>
+      <button onclick="downloadImage()" style="white-space:nowrap;padding:0 14px;">Download image</button>
+    </div>
+
+    <div class="input-row">
+      <input id="inStr" type="text" placeholder="Paste a curve string here (e.g. someone else's numbers) to load it">
+      <button onclick="loadFromString()" style="white-space:nowrap;padding:0 14px;">Load</button>
+    </div>
+
+    <p class="hint">Left axis is the multiplier applied to the default power/torque at that RPM — 100% line = no change. Drag the master curve above 100% to boost, below to cut. Fill in peak power/torque/redline above to see the right-hand axis in real HP / ft&middot;lb and the x-axis in RPM.</p>
+  </div>
+
+  <footer>
+    SimplePlanes 2 Power Curve Editor by 6wheel
+    <div class="links">
+      <a href="https://www.youtube.com/@6wheel" target="_blank" rel="noopener">YouTube</a>
+      <a href="https://github.com/6wheel" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://www.simpleplanes.com/u/6wheel" target="_blank" rel="noopener">SimplePlanes</a>
+    </div>
+  </footer>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = 712, H = 360;
+const PL = 64, PR = 78, PT = 40, PB = 58;
+const pw = W - PL - PR, ph = H - PT - PB;
+
+// Master curve lives in a 0..1 (x, RPM%) by 0..2 (y, multiplier) box. y=1 is "no change".
+const MAXX = 1;
+const MAXY = 2;
+
+// Approximate default in-game power & torque curves, digitized from the reference screenshot.
+// x: 0..1 RPM%, y: 0..1 normalized output.
+const DEFAULT_POWER = [
+  [0,0],[0.1,0.005],[0.2,0.03],[0.3,0.08],[0.4,0.15],[0.5,0.25],
+  [0.6,0.38],[0.65,0.45],[0.7,0.53],[0.75,0.62],[0.8,0.71],
+  [0.85,0.80],[0.9,0.90],[0.95,1.0],[1.0,1.0]
+];
+const DEFAULT_TORQUE = [
+  [0,0],[0.1,0],[0.13,0],[0.14,0.45],[0.15,0.46],[0.2,0.52],[0.25,0.58],
+  [0.3,0.63],[0.35,0.68],[0.4,0.72],[0.45,0.76],[0.5,0.80],[0.55,0.83],
+  [0.6,0.87],[0.65,0.91],[0.7,0.96],[0.72,0.98],[0.75,1.0],[0.8,1.0],
+  [0.85,0.99],[0.9,0.90],[0.95,0.84],[1.0,0.83]
+];
+
+function lerpTable(table, x){
+  x = Math.max(0, Math.min(1, x));
+  for(let i=0;i<table.length-1;i++){
+    const [x0,y0] = table[i], [x1,y1] = table[i+1];
+    if(x >= x0 && x <= x1){
+      const t = (x1===x0) ? 0 : (x-x0)/(x1-x0);
+      return y0 + (y1-y0)*t;
+    }
+  }
+  return table[table.length-1][1];
+}
+
+const PRESETS = {
+  default: [
+    { p0:[0,1], cp1:[0.33,1], cp2:[0.66,1], p1:[1,1] }
+  ],
+  lowend: [
+    { p0:[0,1.7], cp1:[0.08,1.6], cp2:[0.18,1.15], p1:[0.35,1.0] },
+    { p0:[0.35,1.0], cp1:[0.6,1.0], cp2:[0.8,1.0], p1:[1,1.0] }
+  ],
+  highend: [
+    { p0:[0,1.0], cp1:[0.3,1.0], cp2:[0.55,1.0], p1:[0.65,1.0] },
+    { p0:[0.65,1.0], cp1:[0.8,1.25], cp2:[0.9,1.6], p1:[1,1.7] }
+  ],
+  flattenmid: [
+    { p0:[0,1], cp1:[0.18,1], cp2:[0.32,0.8], p1:[0.5,0.75] },
+    { p0:[0.5,0.75], cp1:[0.65,0.75], cp2:[0.82,1], p1:[1,1] }
+  ]
+};
+
+let segs = [];
+
+function deepCopy(arr){ return arr.map(s=>({ p0:[...s.p0], cp1:[...s.cp1], cp2:[...s.cp2], p1:[...s.p1] })); }
+
+function loadPreset(name){
+  segs = deepCopy(PRESETS[name]);
+  draw(); updateOut();
+}
+
+function addSegment(){
+  if(segs.length >= 5) return;
+  const last = segs[segs.length-1];
+  const mid = [(last.p1[0]+MAXX)/2, last.p1[1]];
+  const newSeg = {
+    p0:[...last.p1],
+    cp1:[(last.p1[0]+mid[0])/2, last.p1[1]],
+    cp2:[mid[0], last.p1[1]],
+    p1:[MAXX, last.p1[1]]
+  };
+  segs.push(newSeg);
+  draw(); updateOut();
+}
+
+function removeSegment(){
+  if(segs.length <= 1) return;
+  const removedEndY = segs[segs.length-1].p1[1];
+  segs.pop();
+  segs[segs.length-1].p1 = [MAXX, removedEndY];
+  draw(); updateOut();
+}
+
+function toC(nx, ny){ return [PL+(nx/MAXX)*pw, PT+(1-ny/MAXY)*ph]; }
+function toN(cx, cy){ return [(cx-PL)/pw*MAXX, (1-(cy-PT)/ph)*MAXY]; }
+function clampX(v){ return Math.max(0, Math.min(MAXX, v)); }
+function clampY(v){ return Math.max(0, Math.min(MAXY, v)); }
+
+function bezPt(s, t){
+  const mt = 1-t;
+  return [
+    mt*mt*mt*s.p0[0]+3*mt*mt*t*s.cp1[0]+3*mt*t*t*s.cp2[0]+t*t*t*s.p1[0],
+    mt*mt*mt*s.p0[1]+3*mt*mt*t*s.cp1[1]+3*mt*t*t*s.cp2[1]+t*t*t*s.p1[1]
+  ];
+}
+
+// Sample the master curve (as a function of x) by walking all segments at fine resolution.
+function masterAt(x){
+  x = clampX(x);
+  for(const s of segs){
+    if(x >= s.p0[0]-1e-6 && x <= s.p1[0]+1e-6){
+      // binary search t such that bez x == x
+      let lo=0, hi=1;
+      for(let i=0;i<24;i++){
+        const mid=(lo+hi)/2;
+        const [bx] = bezPt(s, mid);
+        if(bx < x) lo = mid; else hi = mid;
+      }
+      return bezPt(s, (lo+hi)/2)[1];
+    }
+  }
+  return 1;
+}
+
+function isDark(){
+  const forced = document.documentElement.getAttribute('data-theme');
+  if(forced) return forced === 'dark';
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)').matches;
+}
+
+function toggleTheme(){
+  const current = isDark() ? 'dark' : 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('pce-theme', next);
+  document.getElementById('themeBtn').textContent = next === 'dark' ? 'Light mode' : 'Dark mode';
+  draw();
+}
+
+(function initTheme(){
+  const saved = localStorage.getItem('pce-theme');
+  if(saved){
+    document.documentElement.setAttribute('data-theme', saved);
+    document.getElementById('themeBtn').textContent = saved === 'dark' ? 'Light mode' : 'Dark mode';
+  } else {
+    document.getElementById('themeBtn').textContent = isDark() ? 'Light mode' : 'Dark mode';
+  }
+})();
+
+// Parse a "cp2x,cp2y,endx,endy|..." curve string (first segment prefixed with p0,cp1)
+// back into the segs array, so pasted numbers can be loaded and reshaped.
+function loadFromString(){
+  const raw = document.getElementById('inStr').value.trim();
+  if(!raw) return;
+  try{
+    const chunks = raw.split('|').map(c => c.split(',').map(Number));
+    if(chunks.some(c => c.length !== 4 || c.some(n => Number.isNaN(n)))) throw new Error('bad format');
+    // First chunk supplies p0+cp1. Every chunk after that supplies [cp2,p1] for one segment,
+    // and starts the next segment's p0 (cp1 defaults to that same point, giving a straight-ish
+    // continuation you can then reshape by dragging).
+    const rebuilt = [];
+    let cursor = { p0:[chunks[0][0],chunks[0][1]], cp1:[chunks[0][2],chunks[0][3]] };
+    for(let i=1;i<chunks.length;i++){
+      const [cp2x,cp2y,p1x,p1y] = chunks[i];
+      rebuilt.push({ p0:cursor.p0, cp1:cursor.cp1, cp2:[cp2x,cp2y], p1:[p1x,p1y] });
+      cursor = { p0:[p1x,p1y], cp1:[p1x,p1y] };
+    }
+    if(rebuilt.length === 0) throw new Error('need at least one full segment');
+    segs = rebuilt.slice(0,5);
+    draw(); updateOut();
+  } catch(err){
+    alert('Could not parse that string — expected format like: x,y,cx,cy|cx,cy,x,y|...');
+  }
+}
+
+// Real-units helpers: peak power/torque/redline come from the input fields.
+// All three must be present and > 0 for the right-hand HP/ft-lb axis + RPM x-axis
+// to activate; otherwise everything falls back to the original 0..100% view.
+function getPosNum(id){
+  const v = parseFloat(document.getElementById(id).value);
+  return (Number.isFinite(v) && v > 0) ? v : NaN;
+}
+function unitsInfo(){
+  const peakPower = getPosNum('peakPower');
+  const peakTorque = getPosNum('peakTorque');
+  const redline = getPosNum('redlineRPM');
+  const active = Number.isFinite(peakPower) && Number.isFinite(peakTorque) && Number.isFinite(redline);
+  return { active, peakPower, peakTorque, redline };
+}
+
+// Round a value up to a "nice" step so the axis top isn't the exact peak (gives headroom)
+// and isn't a random ugly number either.
+function niceRoundUp(v){
+  if(v <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const step = mag / 4; // e.g. 25 for hundreds, 2.5 for tens
+  return Math.ceil(v / step) * step;
+}
+
+// Actually walk the curve (default table * master multiplier * peak input) to find the
+// real resulting peak — the master curve can push output above the nominal input peak,
+// so the axis scale and any displayed numbers should follow that, not the raw input.
+function computeActualPeaks(u){
+  if(!u.active) return null;
+  let peakP = 0, peakPX = 0, peakT = 0, peakTX = 0;
+  for(let i=0;i<=200;i++){
+    const x = i/200;
+    const mult = masterAt(x);
+    const pv = lerpTable(DEFAULT_POWER, x) * mult * u.peakPower;
+    const tv = lerpTable(DEFAULT_TORQUE, x) * mult * u.peakTorque;
+    if(pv > peakP){ peakP = pv; peakPX = x; }
+    if(tv > peakT){ peakT = tv; peakTX = x; }
+  }
+  return { peakP, peakPX, peakT, peakTX };
+}
+
+function updatePeakReadout(u, peaks){
+  const el = document.getElementById('peakReadout');
+  if(!el) return;
+  if(!u.active || !peaks){ el.textContent = ''; return; }
+  const rpmP = Math.round(peaks.peakPX * u.redline);
+  const rpmT = Math.round(peaks.peakTX * u.redline);
+  el.innerHTML = `Resulting peak: <b>${Math.round(peaks.peakP)} HP</b> @ ${rpmP} RPM &nbsp;&middot;&nbsp; <b>${Math.round(peaks.peakT)} ft&middot;lb</b> @ ${rpmT} RPM`;
+}
+
+// Evenly spaced, "nice" RPM tick values (like a real dyno chart) instead of arbitrary fractions.
+function niceRpmTicks(redline){
+  const niceSteps = [100,200,250,500,1000,1500,2000,2500,5000,10000,20000];
+  const rawStep = redline / 8;
+  const step = niceSteps.find(s => s >= rawStep) || niceSteps[niceSteps.length-1];
+  const ticks = [];
+  for(let v = step; v <= redline; v += step) ticks.push(Math.round(v));
+  return ticks;
+}
+function fmtRpm(v){
+  if(v >= 1000){
+    const k = Math.round(v/100)/10;
+    return (k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)) + 'k';
+  }
+  return String(Math.round(v));
+}
+
+function draw(targetCtx, showMaster, showLeftAxis, geom){
+  targetCtx = targetCtx || ctx;
+  if(showMaster === undefined) showMaster = true;
+  if(showLeftAxis === undefined) showLeftAxis = true;
+  geom = geom || { W, H, PL, PR, PT, PB };
+  const { W:gW, H:gH, PL:gPL, PR:gPR, PT:gPT, PB:gPB } = geom;
+  const gpw = gW - gPL - gPR, gph = gH - gPT - gPB;
+  const gToC = (nx, ny) => [gPL+(nx/MAXX)*gpw, gPT+(1-ny/MAXY)*gph];
+
+  const dark = isDark();
+  const bg      = dark ? '#1e1e1c' : '#ffffff';
+  const gridC   = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const axC     = dark ? 'rgba(255,255,255,0.2)'  : 'rgba(0,0,0,0.2)';
+  const txtC    = dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
+  const baseC   = dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)';
+  const masterC = dark ? '#FF6B5B' : '#C0392B';
+  const powerC  = dark ? '#6FA8FF' : '#2E6FDB';
+  const torqueC = dark ? '#5DCAA5' : '#0F6E56';
+  const handleC = dark ? '#FAC775' : '#BA7517';
+  const ptC     = dark ? '#e8e7e2' : '#1a1a18';
+
+  const u = unitsInfo();
+  const peaks = computeActualPeaks(u);
+  const maxPeak = peaks ? niceRoundUp(Math.max(peaks.peakP, peaks.peakT) * 1.08) : 0;
+  if(targetCtx === ctx) updatePeakReadout(u, peaks);
+
+  const s = gH / 360; // scale factor vs the live canvas, so export text/lines stay proportionally big
+  const tickFontPx = Math.round(14*s);
+  const titleFontPx = Math.round(13*s);
+  const tickFont = `${tickFontPx}px sans-serif`;
+  const titleFont = `600 ${titleFontPx}px sans-serif`;
+  const resultLineW = 3.5 * Math.sqrt(s);
+  const bottomTickY = gPT+gph + Math.round(tickFontPx*1.3);
+  const bottomTitleY = bottomTickY + Math.round(titleFontPx*1.5);
+
+  targetCtx.clearRect(0,0,gW,gH);
+  targetCtx.fillStyle = bg;
+  targetCtx.fillRect(0,0,gW,gH);
+
+  // grid
+  if(u.active){
+    const ticks = niceRpmTicks(u.redline);
+    ticks.forEach(v => {
+      const x = gPL + (v/u.redline)*gpw;
+      targetCtx.strokeStyle = gridC; targetCtx.lineWidth = 0.5;
+      targetCtx.beginPath(); targetCtx.moveTo(x,gPT); targetCtx.lineTo(x,gPT+gph); targetCtx.stroke();
+      targetCtx.fillStyle = txtC; targetCtx.font = tickFont; targetCtx.textAlign = 'center';
+      targetCtx.fillText(fmtRpm(v), x, bottomTickY);
+    });
+  } else {
+    for(let i=0;i<=10;i++){
+      const x = gPL+(i/10)*gpw;
+      targetCtx.strokeStyle = gridC; targetCtx.lineWidth = 0.5;
+      targetCtx.beginPath(); targetCtx.moveTo(x,gPT); targetCtx.lineTo(x,gPT+gph); targetCtx.stroke();
+      if(i>0){
+        targetCtx.fillStyle = txtC; targetCtx.font = tickFont; targetCtx.textAlign = 'center';
+        targetCtx.fillText((i*10)+'%', x, bottomTickY);
+      }
+    }
+  }
+  for(let i=0;i<=8;i++){
+    const y = gPT+(i/8)*gph;
+    targetCtx.strokeStyle = gridC; targetCtx.lineWidth = 0.5;
+    targetCtx.beginPath(); targetCtx.moveTo(gPL,y); targetCtx.lineTo(gPL+gpw,y); targetCtx.stroke();
+    if(showLeftAxis){
+      const val = MAXY - (i/8)*MAXY;
+      targetCtx.fillStyle = txtC; targetCtx.font = tickFont; targetCtx.textAlign = 'right';
+      targetCtx.fillText(Math.round(val*100)+'%', gPL-Math.round(10*s), y+Math.round(5*s));
+    }
+    if(u.active){
+      const rval = maxPeak - (i/8)*maxPeak;
+      targetCtx.fillStyle = txtC; targetCtx.font = tickFont;
+      targetCtx.textAlign = 'left';
+      targetCtx.fillText(Math.round(rval), gPL+gpw+Math.round(10*s), y+Math.round(5*s));
+    }
+  }
+
+  // baseline at y=1 (100%, "no change") — only meaningful alongside the multiplier axis
+  if(showLeftAxis){
+    const [bx0,by0] = gToC(0,1), [bx1] = gToC(1,1);
+    targetCtx.strokeStyle = baseC; targetCtx.lineWidth = 1; targetCtx.setLineDash([4,3]);
+    targetCtx.beginPath(); targetCtx.moveTo(bx0,by0); targetCtx.lineTo(bx1,by0); targetCtx.stroke();
+    targetCtx.setLineDash([]);
+  }
+
+  targetCtx.strokeStyle = axC; targetCtx.lineWidth = 1;
+  targetCtx.beginPath(); targetCtx.moveTo(gPL,gPT); targetCtx.lineTo(gPL,gPT+gph); targetCtx.lineTo(gPL+gpw,gPT+gph); targetCtx.stroke();
+
+  // axis titles — placed above their column, never rotated, so they can't collide with the numbers
+  targetCtx.fillStyle = txtC; targetCtx.font = titleFont;
+  targetCtx.textAlign = 'center';
+  targetCtx.fillText(u.active ? 'RPM' : 'RPM %', gPL+gpw/2, bottomTitleY);
+  if(showLeftAxis){
+    targetCtx.textAlign = 'left';
+    targetCtx.fillText('Mult. %', Math.round(3*s), gPT-Math.round(10*s));
+  }
+  if(u.active){
+    targetCtx.textAlign = 'right';
+    targetCtx.font = `600 ${Math.round(titleFontPx*0.8)}px sans-serif`;
+    targetCtx.fillText('HP / ft\u00b7lb', gPL+gpw+Math.round(10*s), gPT-Math.round(10*s));
+  }
+
+  // resulting power & torque lines (read-only, driven by master)
+  function drawResult(table, peakVal, color){
+    targetCtx.strokeStyle = color; targetCtx.lineWidth = resultLineW; targetCtx.setLineDash([]);
+    targetCtx.beginPath();
+    for(let i=0;i<=120;i++){
+      const x = i/120;
+      const base = lerpTable(table, x);
+      const mult = masterAt(x);
+      let cx, cy;
+      if(u.active){
+        const value = base * mult * peakVal;
+        cx = gPL + (x/MAXX)*gpw;
+        cy = gPT + (1 - value/maxPeak)*gph;
+      } else {
+        const y = base * mult;
+        [cx,cy] = gToC(x, y);
+      }
+      i===0 ? targetCtx.moveTo(cx,cy) : targetCtx.lineTo(cx,cy);
+    }
+    targetCtx.stroke();
+  }
+  drawResult(DEFAULT_POWER, u.active ? u.peakPower : 1, powerC);
+  drawResult(DEFAULT_TORQUE, u.active ? u.peakTorque : 1, torqueC);
+
+  if(!showMaster) return;
+
+  // master curve (editable) — only ever drawn on the live canvas, so it's safe to use the
+  // module-level toC() here (live draw() is always called with the default geometry).
+  segs.forEach((s, si) => {
+    targetCtx.strokeStyle = masterC; targetCtx.lineWidth = 3; targetCtx.setLineDash([]);
+    targetCtx.beginPath();
+    for(let i=0;i<=80;i++){
+      const [bx,by] = bezPt(s, i/80);
+      const [cx2,cy2] = toC(bx,by);
+      i===0 ? targetCtx.moveTo(cx2,cy2) : targetCtx.lineTo(cx2,cy2);
+    }
+    targetCtx.stroke();
+
+    const [p0x,p0y]   = toC(...s.p0);
+    const [cp1x,cp1y] = toC(...s.cp1);
+    const [cp2x,cp2y] = toC(...s.cp2);
+    const [p1x,p1y]   = toC(...s.p1);
+
+    targetCtx.strokeStyle = handleC; targetCtx.lineWidth = 1; targetCtx.setLineDash([3,3]);
+    targetCtx.beginPath(); targetCtx.moveTo(p0x,p0y); targetCtx.lineTo(cp1x,cp1y); targetCtx.stroke();
+    targetCtx.beginPath(); targetCtx.moveTo(p1x,p1y); targetCtx.lineTo(cp2x,cp2y); targetCtx.stroke();
+    targetCtx.setLineDash([]);
+
+    [[cp1x,cp1y],[cp2x,cp2y]].forEach(([hx,hy]) => {
+      targetCtx.fillStyle = handleC;
+      targetCtx.beginPath(); targetCtx.arc(hx,hy,6,0,Math.PI*2); targetCtx.fill();
+      targetCtx.fillStyle = bg;
+      targetCtx.beginPath(); targetCtx.arc(hx,hy,2.5,0,Math.PI*2); targetCtx.fill();
+    });
+
+    const showPts = si===0 ? [s.p0, s.p1] : [s.p1];
+    showPts.forEach(pt => {
+      const [ex,ey] = toC(...pt);
+      targetCtx.fillStyle = ptC;
+      targetCtx.beginPath(); targetCtx.arc(ex,ey,5,0,Math.PI*2); targetCtx.fill();
+    });
+  });
+}
+
+function updateOut(){
+  const f = v => parseFloat(v.toFixed(5)).toString();
+  let parts = [];
+  segs.forEach((s, i) => {
+    if(i === 0) parts.push(`${f(s.p0[0])},${f(s.p0[1])},${f(s.cp1[0])},${f(s.cp1[1])}`);
+    parts.push(`${f(s.cp2[0])},${f(s.cp2[1])},${f(s.p1[0])},${f(s.p1[1])}`);
+  });
+  const str = parts.join('|');
+  document.getElementById('out').textContent = str;
+  document.getElementById('out')._v = str;
+}
+
+function copyOut(){
+  const el = document.getElementById('out');
+  navigator.clipboard.writeText(el._v || el.textContent).then(() => {
+    const btn = document.querySelector('button.primary');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = orig, 1200);
+  }).catch(() => {});
+}
+
+function downloadImage(){
+  const dark = isDark();
+  const bg   = dark ? '#1e1e1c' : '#ffffff';
+  const txtC = dark ? '#e8e7e2' : '#1a1a18';
+  const muteC = dark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)';
+
+  const SQ = 900;              // square output size
+  const OUTER = 12;             // outer margin so the chart isn't edge-to-edge
+  const TITLE_H = 82, FOOTER_H = 34;
+  const chartH = SQ - TITLE_H - FOOTER_H;
+  const chartW = SQ - OUTER*2;
+
+  const sq = document.createElement('canvas');
+  sq.width = SQ; sq.height = SQ;
+  const ectx = sq.getContext('2d');
+
+  ectx.fillStyle = bg;
+  ectx.fillRect(0,0,SQ,SQ);
+
+  // title: craft name (if given) is the big bright headline; the app name is the small muted line
+  const craft = document.getElementById('craftName').value.trim();
+  ectx.textAlign = 'center';
+  if(craft){
+    ectx.fillStyle = txtC;
+    ectx.font = '700 32px sans-serif';
+    ectx.fillText(craft, SQ/2, 40);
+    ectx.fillStyle = muteC;
+    ectx.font = '15px sans-serif';
+    ectx.fillText('SimplePlanes 2 Power Curve Editor by 6wheel', SQ/2, 64);
+  } else {
+    ectx.fillStyle = txtC;
+    ectx.font = '700 26px sans-serif';
+    ectx.fillText('SimplePlanes 2 Power Curve Editor by 6wheel', SQ/2, 46);
+  }
+
+  // chart, natively laid out to fill the square (no master curve, no left axis) —
+  // its own geometry, inset from the edges, not a stretched copy of the live canvas
+  ectx.save();
+  ectx.translate(OUTER, TITLE_H);
+  draw(ectx, false, false, { W: chartW, H: chartH, PL: 10, PR: 84, PT: 40, PB: 94 });
+  ectx.restore();
+
+  // footer
+  ectx.fillStyle = muteC;
+  ectx.font = '14px sans-serif';
+  ectx.textAlign = 'center';
+  ectx.fillText('youtube.com/@6wheel   \u00b7   github.com/6wheel   \u00b7   simpleplanes.com/u/6wheel', SQ/2, TITLE_H + chartH + 20);
+
+  sq.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const fname = (craft ? craft.replace(/[^a-z0-9\-_ ]/gi,'').trim().replace(/\s+/g,'_') : 'power_curve') + '.png';
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
+}
+
+let drag = null;
+
+function hitTest(cx, cy){
+  const R = 12;
+  for(let si=0; si<segs.length; si++){
+    const s = segs[si];
+    const candidates = [{ ref:s, key:'cp1' }, { ref:s, key:'cp2' }];
+    if(si === 0) candidates.push({ ref:s, key:'p0' });
+    candidates.push({ ref:s, key:'p1', linked: si < segs.length-1 ? { si:si+1, key:'p0' } : null });
+    for(const c of candidates){
+      const [ex,ey] = toC(...c.ref[c.key]);
+      if(Math.hypot(cx-ex, cy-ey) < R) return c;
+    }
+  }
+  return null;
+}
+
+function getPos(e){
+  const r = cv.getBoundingClientRect();
+  const sc = W / r.width;
+  const src = e.touches ? e.touches[0] : e;
+  return [(src.clientX-r.left)*sc, (src.clientY-r.top)*sc];
+}
+
+function onDown(e){
+  const [cx,cy] = getPos(e);
+  const h = hitTest(cx,cy);
+  if(h){ drag = h; e.preventDefault(); }
+}
+
+function onMove(e){
+  if(!drag) return;
+  e.preventDefault();
+  const [cx,cy] = getPos(e);
+  const [rawX,rawY] = toN(cx,cy);
+  const nx = clampX(rawX), ny = clampY(rawY);
+  drag.ref[drag.key] = [nx,ny];
+  if(drag.linked) segs[drag.linked.si][drag.linked.key] = [nx,ny];
+  draw(); updateOut();
+}
+
+function onUp(){ drag = null; }
+
+cv.addEventListener('mousedown', onDown);
+window.addEventListener('mousemove', onMove);
+window.addEventListener('mouseup', onUp);
+cv.addEventListener('touchstart', onDown, {passive:false});
+window.addEventListener('touchmove', onMove, {passive:false});
+window.addEventListener('touchend', onUp);
+
+window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => draw());
+
+loadPreset('default');
+</script>
+</body></html>
